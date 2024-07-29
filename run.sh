@@ -1,0 +1,1 @@
+chainlit run model.py -w
