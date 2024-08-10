@@ -81,37 +81,54 @@ def final_result(query):
 
     return response
 
+
 # chainlit code
+# This decorator registers an asynchronous function start() to be called when a chat session starts.
 @cl.on_chat_start
 async def start():
-    chain = qa_bot()
-    msg = cl.Message(content="Starting the bot...")
-    await msg.send()
-    msg.content = "Hi, Welcome to Medical Bot. What is your query?"
-    await msg.update()
+    chain = qa_bot() # Initializes a chatbot chain we have created above.
+    msg = cl.Message(content="Starting the bot...") # Creates a message to inform the user that the bot is starting.
+    await msg.send() #Sends the initial message to the user.
+    msg.content = "Hi, Welcome to Medical Bot. What is your query?" # Updates the content of the initial message to provide a greeting and prompt.
+    await msg.update() # Updates the message on the frontend to reflect the new content.
 
-    cl.user_session.set("chain", chain)
+    cl.user_session.set("chain", chain) #Saves the chain object in the user session so that it can be accessed later.
 
+
+#This decorator registers an asynchronous function main() to be called when a message is received from the user.
 @cl.on_message
 async def main(message: cl.Message):
-    chain = cl.user_session.get("chain")
+    try:
+        chain = cl.user_session.get("chain")  # Retrieves the chatbot chain from the user session
+        """
+        cl.AsyncLangchainCallbackHandler is a class from the Chainlit library used to handle callbacks asynchronously during the interaction with a language model or chain.
+        It provides mechanisms to manage and process intermediate results and final answers from language models.
+        
+        Parameters:
+        1) stream_final_answer=True: This parameter indicates that the final answer should be streamed back in real-time. 
+        It allows the handler to send updates as the answer is being generated, rather than waiting until the entire answer is ready.
 
-    ###################################################################################
-    # You can visualize the intermediate steps by clicking on the dropdown for any step
-    ###################################################################################
-    cb = cl.AsyncLangchainCallbackHandler(
-        stream_final_answer=True,
-        answer_prefix_tokens=["FINAL", "ANSWER"]
-    )
-    cb.answer_reached = True
+        2) answer_prefix_tokens=["FINAL", "ANSWER"]: This parameter specifies tokens that are used to determine when the final answer has been reached in the streaming process. 
+        The handler will use these tokens as indicators to finalize the answer and process any subsequent actions.
+        """
+        ###################################################################################
+        # You can visualize the intermediate steps by clicking on the dropdown for any step
+        ###################################################################################
+        cb = cl.AsyncLangchainCallbackHandler(
+            stream_final_answer=True,
+            answer_prefix_tokens=["FINAL", "ANSWER"]
+        )
+        cb.answer_reached = True
 
-    res = await chain.ainvoke(message.content, callbacks=[cb])
-    answer = res["result"]
-    sources = res["source_documents"]
+        res = await chain.ainvoke(message.content, callbacks=[cb])  # Invokes the chatbot chain with the user's message
+        answer = res["result"]  # Extracts the result from the response
+        sources = res["source_documents"]  # Extracts source documents from the response
 
-    if sources:
-        answer += f"\nSources:" + str(sources)
-    else:
-        answer += "\nNo sources found"
+        if sources:
+            answer += f"\nSources:" + str(sources)  # Appends sources to the answer if available
+        else:
+            answer += "\nNo sources found"  # Adds a note if no sources are found
 
-    await cl.Message(content=answer).send()
+        await cl.Message(content=answer).send()  # Sends the response back to the user
+    except Exception as e:
+        await cl.Message(content=f"An error occurred: {str(e)}").send()  # Sends an error message if an exception occurs
